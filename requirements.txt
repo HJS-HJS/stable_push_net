@@ -1,0 +1,5 @@
+corgipath
+collision
+seaborn
+scipy
+shapely

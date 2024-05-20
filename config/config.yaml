@@ -1,0 +1,37 @@
+data_path: /home/rise/catkin_ws/src/data
+data_dir: catkin_ws/src/stable_push_net_ros/models/2024-05-20-0000
+model_dir: catkin_ws/src/stable_push_net_ros/models
+
+
+# Inference Configuration
+planner:
+  gripper_width: 0.08
+  height: 0.015
+  num_push_directions: 4 
+  visualize: False
+  image_type: 'masked_image'
+
+depth_based:
+  friction_coefficient: 1
+
+network:
+  model_name: "2024-05-20-0000"
+  network_threshold: 0.2
+
+hybrid:
+  grid_size: 0.05  # unit: m
+  dtheta:  5  # unit: deg
+
+# Train Configuration
+file_zero_padding_num: 7
+base_lr: 0.0001
+decay_rate: 0.95
+train_l2_regularizer: 0.0005
+batch_size: 64
+num_epochs: 10
+momentum_rate: 0.9
+network_threshold: 0.01
+StablePushNet:
+  image_height: 96
+  image_width: 96
+  batch_size: 64

@@ -14,10 +14,10 @@ from nav_msgs.msg import Path
 import tf.transformations as tft
 from copy import copy
 
-from stable_pushnet_ros.srv import GetStablePushPath, GetStablePushPathRequest
-from stable_pushnet_ros.msg import PushTarget
+from stable_push_net_ros.srv import GetStablePushPath, GetStablePushPathRequest
+from stable_push_net_ros.msg import PushTarget
 from stable_pushing.stable_push_planner import HybridAstarPushPlanner
-from stable_pushing.stable_determinator import DepthImageBasedDeterminator, StablePushNetDeterminator
+from stable_pushing.stable_determinator import StablePushNetDeterminator
 from stable_pushing.contact_point_sampler import ContactPointSampler
 from stable_pushing.map_interface import MapInterface
 
@@ -45,12 +45,7 @@ class StablePushNetServer(object):
             self.get_stable_push_path_handler)
 
         # Get stable push path
-            
-        stable_determinator = DepthImageBasedDeterminator(
-            self.depth_based_config['friction_coefficient'])
-        
-        if self.planner_config['learning_base'] == True:
-            stable_determinator = StablePushNetDeterminator()
+        stable_determinator = StablePushNetDeterminator()
             
         self.planner = HybridAstarPushPlanner(
             stable_determinator=stable_determinator,
@@ -181,7 +176,6 @@ class StablePushNetServer(object):
             
         return target_id_list, goal_pose_list, push_direction_range_list
     
-    
     def parse_dish_segmentation_msg(self, dish_segmentation_msg):
         ''' Parse dish segmentation msg to segmasks and ids.'''
         
@@ -297,7 +291,7 @@ class StablePushNetServer(object):
     
 
 if __name__ == '__main__':
-    rospy.init_node('stable_pushnet_server')
+    rospy.init_node('stable_push_net_server')
     server = StablePushNetServer()
     
     rospy.spin()
