@@ -1,5 +1,9 @@
 corgipath
 collision
+opencv-python
+parmap
+pyyaml
+rospkg
 seaborn
 scikit-learn
 scipy

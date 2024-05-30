@@ -9,14 +9,15 @@ import matplotlib.pyplot as plt
 import rospy
 import tf
 import tf.transformations as tft
+# import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 from copy import copy
 
 
-from stable_pushnet_ros.srv import GetStablePushPath, GetStablePushPathRequest, GetStablePushPathResponse
-from stable_pushnet_ros.msg import PushTarget, ContactPoint
+from stable_push_net_ros.srv import GetStablePushPath, GetStablePushPathRequest, GetStablePushPathResponse
+from stable_push_net_ros.msg import PushTarget, ContactPoint
 from stable_pushing.stable_push_planner import HybridAstarPushPlanner
 from stable_pushing.stable_determinator import StablePushNetDeterminator
 from stable_pushing.contact_point_sampler import ContactPointSampler

@@ -55,6 +55,7 @@ add_message_files(
   FILES
   PushTarget.msg
   PushTargetArray.msg
+  ContactPoint.msg
 )
 
 ## Generate services in the 'srv' folder

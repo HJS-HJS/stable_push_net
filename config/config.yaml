@@ -1,6 +1,8 @@
 data_path: /home/rise/catkin_ws/src/data
-data_dir: catkin_ws/src/push_planners/twc-stable_push_net_ros/models/2024-05-20-0000
-model_dir: catkin_ws/src/push_planners/twc-stable_push_net_ros/models
+# data_dir: catkin_ws/src/push_planners/twc-stable-push-net-ros/models/2024-05-20-0000
+# model_dir: catkin_ws/src/push_planners/twc-stable-push-net-ros/models
+data_dir: catkin_ws/src/twc-stable-push-net-ros/models/2024-05-20-0000
+model_dir: catkin_ws/src/twc-stable-push-net-ros/models
 
 
 # Inference Configuration
