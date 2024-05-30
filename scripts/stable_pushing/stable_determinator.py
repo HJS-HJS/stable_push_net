@@ -3,7 +3,7 @@
 import yaml
 import torch
 import numpy as np
-from .utils.model import PushNet
+from .stable_push_utils.model import PushNet
 from .stable_push_utils.utils import checker_input, crop_image
 from .utils.stable_region_analytical import StableRegion
 import matplotlib.pyplot as plt
