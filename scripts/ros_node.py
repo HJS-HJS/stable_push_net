@@ -17,7 +17,7 @@ from nav_msgs.msg import Path
 from stable_push_net_ros.srv import GetStablePushPath, GetStablePushPathRequest, GetStablePushPathResponse
 from stable_pushing.stable_push_planner import HybridAstarPushPlanner
 from stable_pushing.stable_determinator import StablePushNetDeterminator
-from stable_pushing.contact_point_sampler import ContactPointSampler
+from scripts.stable_pushing.stable_push_utils.contact_point_sampler import ContactPointSampler
 from stable_pushing.map_interface import MapInterface
 
     

@@ -17,7 +17,7 @@ from corgipath.matplot.utils import pick_color, auto_scale
 
 from .utils.hybrid_astar import HybridAstarTrajectory
 from .stable_push_utils.utils import crop_image
-from .contact_point_sampler import ContactPoint
+from .stable_push_utils.contact_point_sampler import ContactPoint
 from .stable_determinator import StablePushNetDeterminator, DepthImageBasedDeterminator
 from scipy.interpolate import CubicSpline
 

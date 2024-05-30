@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import os
 import yaml
 import torch
 import numpy as np
 from .stable_push_utils.model import PushNet
 from .stable_push_utils.utils import checker_input, crop_image
 from .utils.stable_region_analytical import StableRegion
-import matplotlib.pyplot as plt
-import os
-import rospy
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 
@@ -39,22 +37,20 @@ class StablePushNetDeterminator(object):
         # Normalize input data
         data_path = os.path.expanduser('~') + '/' + cfg['data_dir']
         data_stats_folder_path = data_path+ '/data_stats'
-        self.image_mean = np.load(data_stats_folder_path + "/" + self.image_type + "_mean.npy")
-        self.image_std  = np.load(data_stats_folder_path + "/" + self.image_type + "_std.npy")
+        try:
+            self.image_mean = np.load(data_stats_folder_path + "/" + self.image_type + "_mean.npy")
+            self.image_std  = np.load(data_stats_folder_path + "/" + self.image_type + "_std.npy")
+        except:
+            raise ValueError('Unknown image type: ', self.image_type)
 
-        # self.image_mean = np.load(data_stats_folder_path + '/image_mean.npy')
-        # self.image_std  = np.load(data_stats_folder_path + '/image_std.npy')
-        self.masked_image_mean = np.load(data_stats_folder_path + '/masked_image_mean.npy')
-        self.masked_image_std  = np.load(data_stats_folder_path + '/masked_image_std.npy')
         self.masked_image_mean = self.image_mean
         self.masked_image_std  = self.image_std
     
         self.velocity_num = cfg['network_input']
-        # self.velocities = model_input(self.velocity_num, [None, None, None])
         self.velocities, self.real_velocities, self.shape = checker_input(self.velocity_num, [None, None, None])
         self.velocity_mean = np.load(data_stats_folder_path + '/velocity_mean.npy')
         self.velocity_std = np.load(data_stats_folder_path + '/velocity_std.npy')
-        self.velocities = (self.velocities - self.velocity_mean) / self.velocity_std
+        self.normalized_velocities = (self.velocities - self.velocity_mean) / self.velocity_std
         
 
     def is_stable(self, depth_image, contact_point, icr):
@@ -71,10 +67,7 @@ class StablePushNetDeterminator(object):
         # Calculate quality for a given velocity and contact point
         image_tensor = crop_image(depth_image, contact_point)
         
-        if self.image_type == 'masked':
-            image_tensor = (image_tensor - self.masked_image_mean) / self.masked_image_std
-        else: 
-            image_tensor = (image_tensor - self.image_mean) / self.image_std
+        image_tensor = (image_tensor - self.image_mean) / self.image_std
             
         image_tensor = torch.from_numpy(image_tensor.astype(np.float32)).unsqueeze(0).unsqueeze(0)
         
@@ -111,15 +104,11 @@ class StablePushNetDeterminator(object):
         # Calculate quality for a given velocity and contact point
         image_tensor = crop_image(depth_image, contact_point)
         
-        # if self.image_type == 'masked_image':
-        #     image_tensor = (image_tensor - self.masked_image_mean) / self.masked_image_std
-        # else: 
-        #     image_tensor = (image_tensor - self.image_mean) / self.image_std
         image_tensor = (image_tensor - self.image_mean) / self.image_std
             
         image_tensor = torch.from_numpy(image_tensor.astype(np.float32))
             
-        velocities = torch.from_numpy(np.array(self.velocities).astype(np.float32))
+        velocities = torch.from_numpy(np.array(self.normalized_velocities).astype(np.float32))
         
         with torch.no_grad():
             
@@ -183,14 +172,11 @@ class StablePushNetDeterminator(object):
         """
         
         # Calculate quality for a given velocity and contact point
-        image = crop_image(depth_image, contact_point)
-        
-        if self.image_type == 'masked':
-            normalized_image = (image - self.masked_image_mean) / self.masked_image_std
-        else: 
-            normalized_image = (image - self.image_mean) / self.image_std
+        image_tensor = crop_image(depth_image, contact_point)
             
-        normalized_velocities = (self.velocities - self.velocity_mean) / self.velocity_std
+        normalized_image = (image_tensor - self.image_mean) / self.image_std
+        
+        normalized_velocities = self.normalized_velocities
         
         with torch.no_grad():
             
