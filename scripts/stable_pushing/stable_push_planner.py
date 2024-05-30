@@ -767,7 +767,7 @@ class HybridAstarPushPlanner(object):
             print(path_length)
         shortest_path_idx = 0
         for i, path_length in enumerate(path_length_list):
-            if path_length < shortest_path_idx:
+            if path_length < path_length_list[shortest_path_idx]:
                 shortest_path_idx = i
         # shortest_path_idx = np.argmin(path_length_list)
         shortest_path = path_list[shortest_path_idx]
