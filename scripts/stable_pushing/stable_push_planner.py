@@ -395,6 +395,39 @@ class HybridAstarPushPlanner(object):
         # Heuristic score
         h_score = np.linalg.norm(gxy - bxy) + np.linalg.norm(bxy - axy) + np.linalg.norm(axy - qxy)
         return h_score
+    
+    @staticmethod
+    def _draw_best_path(self, depth_image, contact_point, path, goal):
+        left_min_radius, right_min_radius = self._get_stable_minimum_radius(
+        depth_image, contact_point)
+        
+        successor_template = self._get_successor_template(
+            left_min_radius[0], right_min_radius[0])
+        search_space = self._get_search_space(successor_template)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        planner = HybridAstar()
+        planner.collision_system = self._get_collision_system(contact_point)
+        planner.collision_system.build()
+        planner.search_space = search_space
+        planner.search_space.reset()
+        
+        self.draw_planning_scene(
+            ax, contact_point.pose, goal, planner.collision_system,
+            planner.search_space, self._corners, draw_goal_shape=False)
+
+        color = list(pick_color(0.3, "rainbow"))
+        color[3] = 0.8  # Set alpha
+
+        draw.draw_waypoints(
+            ax,
+            path,
+            shape=planner.collision_system.agent_collision,
+            show_shape=True,
+            shape_style={"color": color, "fill": False},
+            show_coordinates=False,
+        )
+        plt.show()
 
     @staticmethod
     def draw_goal(ax, shape, at, radius, style):
@@ -508,37 +541,14 @@ class HybridAstarPushPlanner(object):
         planner.search_space.reset()
         
         if animate:
-            # TODO: remove save option
-            for i in range(0, 10):
-                print('TODO: remove save option!!!')
-            # save options
-            fig_save_dir = '/home/cloudrobot2/Desktop/Figs'
-            time_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            before_plan_save_path = os.path.join(fig_save_dir, '{}_before.png'.format(time_str))
-            after_plan_save_path = os.path.join(fig_save_dir, '{}_after.png'.format(time_str))
-            
             ##########################################################
             # Draw planning scene before planning to check collision #
             ##########################################################
             # initialize
             print('Draw planning scene before the live demo.')
-            fig, ax = plt.subplots()
             self.draw_planning_scene(
-                ax, start, goal, planner.collision_system,
-                planner.search_space, self._corners, draw_goal_shape=True)
-            plt.show()
-
-            ########################################################
-            # Draw planning scene before planning to for the paper #
-            ########################################################
-            # TODO: remove it
-            # save
-            print('Save planning scene before the live demo.')
-            fig, ax = plt.subplots()
-            self.draw_planning_scene(
-                ax, start, goal, planner.collision_system,
+                animate, start, goal, planner.collision_system,
                 planner.search_space, self._corners, draw_goal_shape=False)
-            # plt.savefig(before_plan_save_path, dpi=1200)
 
             # set draw style
             """
@@ -597,28 +607,19 @@ class HybridAstarPushPlanner(object):
                 start, goal,
                 fn_heuristic=self._cartesian_heuristic,
                 fn_terminal_condition=self._cartesian_terminal_condition,)
-            print(waypoints)
-            print(len(waypoints))
-
             # Result
             # ------
 
             color = list(pick_color(0.3, "rainbow"))
             color[3] = 0.8  # Set alpha
             draw.draw_waypoints(
-                ax,
+                animate,
                 waypoints,
                 shape=planner.collision_system.agent_collision,
                 show_shape=True,
                 shape_style={"color": color, "fill": False},
                 show_coordinates=False,
             )
-            # TODO: removeit
-            # save
-            # plt.savefig(after_plan_save_path, dpi=1200)
-
-            # Wait for closing the plot
-            plt.pause(0)
         else:
             waypoints = planner.solve(
                 start, goal,
@@ -651,41 +652,39 @@ class HybridAstarPushPlanner(object):
 
         # get collision system from contact point
         collision_system = self._get_collision_system(contact_point)
-        print('start pose: {:.2f} {:.2f} {:.2f}'.format(
-            contact_point.pose[0],
-            contact_point.pose[1],
-            np.rad2deg(contact_point.pose[2])))
+        # print('start pose: {:.2f} {:.2f} {:.2f}'.format(
+        #     contact_point.pose[0],
+        #     contact_point.pose[1],
+        #     np.rad2deg(contact_point.pose[2])))
 
         # get search space
         
         # TODO: self._dtheta is changed inside function. Fix it.
-        if learning_base == True:
-            left_min_radius, right_min_radius = self._get_stable_minimum_radius(
+        left_min_radius, right_min_radius = self._get_stable_minimum_radius(
             depth_image, contact_point)
-            
-        else:
-            left_min_radius, right_min_radius = self._get_stable_minimum_radius_depth_base(
-                depth_image, contact_point)
         
-        
+        print("angle:", left_min_radius[1:])
+        left_min_radius[1] = np.deg2rad(left_min_radius[1])
         # --- TESTING: Getting maximum radius ---
         # left_max_radius, right_max_radius = self._get_stable_maximum_radius(
         #     depth_image, contact_point)
         # ---------------------------------------
+        _temp_ratio = 1.0
         successor_template = self._get_successor_template(
+            # left_min_radius[0] * _temp_ratio, right_min_radius[0] * _temp_ratio)
             left_min_radius[0], right_min_radius[0])
         search_space = self._get_search_space(successor_template)
 
         # solve path
-        print("Goal before solve: {:.2f} {:.2f} {:.2f}".format(
+        print("Goal before solv e: {:.2f} {:.2f} {:.2f}".format(
             goal[0], goal[1], goal[2]))
         path = self._solve(
             start=contact_point.pose, 
             goal=goal,
             collision_system=collision_system,
             search_space=search_space,
-            animate=False)
-        return path
+            animate=visualize)
+        return path, left_min_radius[1:]
 
     def update_map(self, map_corners, map_obstacles, **kwargs):
         """Update grid map.
@@ -726,30 +725,39 @@ class HybridAstarPushPlanner(object):
         """
         contact_point_list = []
         path_list = []
+        pose_list = []
         
         # Compare stability for all contact points
+        print("contact points: " ,len(contact_points))
         # self._compare_stability_for_all_velocities(depth_image, contact_points)
         
         if visualize:
-            contact_points[0].visualize_on_cartesian()
+            fig = plt.figure()
         
-        for contact_point in contact_points:
+        for idx, contact_point in enumerate(contact_points):
             # print
-            print('Plan with `({}, {}, {})` contact point'.format(
-                contact_point.pose[0],
-                contact_point.pose[1],
-                np.rad2deg(contact_point.pose[2])))
- 
+            # print('Plan with `({}, {}, {})` contact point'.format(
+            #     contact_point.pose[0],
+            #     contact_point.pose[1],
+            #     np.rad2deg(contact_point.pose[2])))
+            
+            if visualize:
+                ax = fig.add_subplot(int(np.ceil(np.sqrt(len(contact_points)))), int(np.ceil(np.sqrt(len(contact_points)))), idx + 1)
+            else:
+                ax = None
             # get stable push path
-            path = self._plan(
-                depth_image, contact_point, goal,
-                learning_base=learning_base,
-                visualize=visualize)
+            try:
+                path, pose = self._plan(
+                    depth_image, contact_point, goal,
+                    visualize = ax)
 
-            # append to list if successful
-            if len(path) > 0:
-                contact_point_list.append(contact_point)
-                path_list.append(np.array(path))
+                # append to list if successful
+                if len(path) > 0:
+                    contact_point_list.append(contact_point)
+                    path_list.append(np.array(path))
+                    pose_list.append(np.array(pose))
+            except:
+                continue
 
         # get shortest path
         path_length_list = []
@@ -759,22 +767,46 @@ class HybridAstarPushPlanner(object):
             for i in range(len(path) - 1):
                 path_length += np.linalg.norm(path[i + 1, :2] - path[i, :2])
             path_length_list.append(path_length)
-            
-        try:
-            shortest_path_idx = np.argmin(path_length_list)
-        except:
-            print('No successful path found')
-            return [], False
-        print('shortest_path_idx: ', shortest_path_idx)
-        print('path_list len: ', len(path_list))
-
+            print(path_length)
+        shortest_path_idx = 0
+        for i, path_length in enumerate(path_length_list):
+            if path_length < shortest_path_idx:
+                shortest_path_idx = i
+        # shortest_path_idx = np.argmin(path_length_list)
         shortest_path = path_list[shortest_path_idx]
-        
-        # Interpolate the path with 100 waypoints. 
-        # This is because Doosan Robot Arm accepts a path with maximum 100 waypoints.
-        interpolated_path = self.interpolate_path(shortest_path, number_of_waypoints=100)
-        
-        return interpolated_path, True
+        shortest_pose = pose_list[shortest_path_idx]
+        shortest_contact_point = contact_point_list[shortest_path_idx]
+
+        if visualize:
+            plt.show()
+            # self._draw_best_path(self, depth_image, shortest_contact_point, shortest_path, goal)
+
+        from scipy.interpolate import CubicSpline
+        # Extract x, y, and theta columns from the motion path
+        x = shortest_path[:, 0]
+        y = shortest_path[:, 1]
+        theta = shortest_path[:, 2]
+
+        # Create an array of indices corresponding to the original motion path points
+        N = len(shortest_path)
+        indices = np.arange(N)
+
+        # Create a new array of indices for the interpolated points
+        new_indices = np.linspace(0, N-1, 100)
+
+        # Perform cubic spline interpolation on x, y, and theta separately
+        cs_x = CubicSpline(indices, x)
+        cs_y = CubicSpline(indices, y)
+        cs_theta = CubicSpline(indices, theta)
+
+        # Evaluate the cubic splines at the new indices
+        interpolated_x = cs_x(new_indices)
+        interpolated_y = cs_y(new_indices)
+        interpolated_theta = cs_theta(new_indices)
+
+        # Combine the interpolated x, y, and theta into a new motion path
+        interpolated_motion_path = np.column_stack((interpolated_x, interpolated_y, interpolated_theta))
+        return interpolated_motion_path, shortest_contact_point, shortest_pose
 class RRTPushPlanner(object):
     def __init__(self):
         pass
@@ -978,3 +1010,4 @@ class MinimumICRPushPlanner(object):
 #             obstacles_and_map = np.arange(100).reshape(-1,2)
 #             # Sample contact points
 #             best_contact_point, best_trajectory = planner.plan(depth_image, contact_points, goal_center)
+    

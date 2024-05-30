@@ -4,6 +4,7 @@ import numpy as np
 import collision
 import matplotlib
 matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 
 import rospy
 import tf
@@ -11,11 +12,11 @@ import tf.transformations as tft
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
-import tf.transformations as tft
 from copy import copy
 
-from stable_push_net_ros.srv import GetStablePushPath, GetStablePushPathRequest
-from stable_push_net_ros.msg import PushTarget
+
+from stable_pushnet_ros.srv import GetStablePushPath, GetStablePushPathRequest, GetStablePushPathResponse
+from stable_pushnet_ros.msg import PushTarget, ContactPoint
 from stable_pushing.stable_push_planner import HybridAstarPushPlanner
 from stable_pushing.stable_determinator import StablePushNetDeterminator
 from stable_pushing.contact_point_sampler import ContactPointSampler
@@ -54,98 +55,101 @@ class StablePushNetServer(object):
 
         # print
         rospy.loginfo('StablePushNetServer is ready to serve.')
+    
+    @staticmethod
+    def collision_circles_to_obstacles(circles):
+        """Conver Circle msg to collision.Circle object.
 
+        Args:
+            circles (List[Circle]): Circle msg.
+
+        Returns:
+            obstacles (List[collision.Circle]): List of collision.Circle objects.
+        """
+        obstacles = []
+        for circle in circles:
+            obstacles.append(collision.Circle(collision.Vector(circle.x, circle.y), circle.r))
+        return obstacles
+    
     def get_stable_push_path_handler(self, request):
         assert isinstance(request, GetStablePushPathRequest)
         # ros msgs
-        dish_seg_msg = request.dish_segmentation
-        table_det_msg = request.table_detection
+        # depth_img_msg = request.depth_image
+        # dish_seg_msg = request.dish_segmentation
+        # table_det_msg = request.table_detection
+        # camera_info_msg = request.cam_info
+        # camera_pose_msg = request.camera_pose
+        # push_target_array_msg = request.push_targets
+
         depth_img_msg = request.depth_image
-        camera_info_msg = request.cam_info
-        camera_pose_msg = request.camera_pose
-        push_target_array_msg = request.push_targets
-        
-        rospy.loginfo("Received request.")
-        
-        # Parse push target msg
-        target_id_list, goal_pose_list, push_direction_range_list = self.parse_push_target_msg(push_target_array_msg)
-        
-        # Get visual information 
+        segmask_msg = request.segmask
+        camera_info_msg = request.cam_info 
+        camera_pose_msg = request.cam_pose
+        map_info_msg = request.map_info
+        goal_pose_msg = request.goal_pose
+
+        depth_img = self.cv_bridge.imgmsg_to_cv2(depth_img_msg, desired_encoding='passthrough')
+        segmask_img = self.cv_bridge.imgmsg_to_cv2(segmask_msg, desired_encoding='passthrough')
+        cam_intr = np.array(camera_info_msg.K).reshape(3, 3)
         cam_pos_tran = [camera_pose_msg.pose.position.x, camera_pose_msg.pose.position.y, camera_pose_msg.pose.position.z]
         cam_pos_quat = [camera_pose_msg.pose.orientation.x, camera_pose_msg.pose.orientation.y, camera_pose_msg.pose.orientation.z, camera_pose_msg.pose.orientation.w]
         cam_pos = self.tf.fromTranslationRotation(cam_pos_tran, cam_pos_quat)
+
+        map_corners = [
+            map_info_msg.corners[0].x,
+            map_info_msg.corners[1].x,
+            map_info_msg.corners[0].y,
+            map_info_msg.corners[1].y]
+        map_obstacles = self.collision_circles_to_obstacles(map_info_msg.collision_circles)
         
-        depth_img = self.cv_bridge.imgmsg_to_cv2(depth_img_msg, desired_encoding='passthrough')
-        cam_intr = np.array(camera_info_msg.K).reshape(3, 3)
-
-        # Get dish information 
-        segmask_list, id_list = self.parse_dish_segmentation_msg(dish_seg_msg)
-        dish_shape_list = self.map_interface.get_dish_shapes(id_list, segmask_list, depth_img, cam_pos, cam_intr)
-        rospy.loginfo("{} Dishes are segmented".format(len(dish_shape_list)))
+        rospy.loginfo("Received request.")
         
-        # Get table information
-        map_corners = self.parse_table_detection_msg(table_det_msg) # min_x, max_x, min_y, max_y
+        # Sample push contacts
+        cps = ContactPointSampler(cam_intr, cam_pos, 
+                                gripper_width = self.planner_config['gripper_width'],
+                                num_push_dirs = self.planner_config['num_push_directions'])
+        contact_points = cps.sample(depth_img, segmask_img)
+
+        # set goal        
+        goal = (goal_pose_msg[0], goal_pose_msg[1], np.pi )
+
+        # Derive stable push path
+        self.planner.update_map(map_corners, map_obstacles)
+        image = np.multiply(depth_img, segmask_img)
+
+        best_path, best_contact_point, best_pose = self.planner.plan(
+            image, contact_points, goal, #depth_img * segmask_img is for masked depth image
+            learning_base=True,
+            visualize=self.planner_config['visualize'])
+
+        # Make ros msg
+        res = GetStablePushPathResponse()   
+        path_msg = Path()
+        path_msg.header.frame_id = camera_pose_msg.header.frame_id
+        path_msg.header.stamp = rospy.Time.now()
+        for each_point in best_path:
+            pose_stamped = PoseStamped()
+            pose_stamped.header.stamp = rospy.Time.now()
+            pose_stamped.header.frame_id = camera_pose_msg.header.frame_id
+            pose_stamped.pose.position.x, pose_stamped.pose.position.y, pose_stamped.pose.position.z = each_point[0], each_point[1], self.planner_config['height']
+            pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_euler(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')
+            path_msg.poses.append(pose_stamped)
         
-        # Loop through push path planning until we find the push path
-        for i in range(len(target_id_list)):
-            # Get current target ID
-            target_id = target_id_list[i]
-            goal_pose = goal_pose_list[i]
-            push_direction_range = push_direction_range_list[i]
-            
-            # Get corresponding data
-            segmask_img = segmask_list[target_id]
-            
-            # Sample push contacts
-            cps = ContactPointSampler(cam_intr, cam_pos, 
-                                    gripper_width = self.planner_config['gripper_width'],
-                                    num_push_dirs = self.planner_config['num_push_directions'],
-                                    push_dir_range = push_direction_range)
-            contact_points = cps.sample(depth_img, segmask_img)
-            
-            # Set map obstacles
-            obstacles = copy(dish_shape_list)
-            obstacles.pop(target_id)
-            map_obstacles = self.shrink_obstacles_for_initial_collision(contact_points, obstacles)
+        # point_left = ContactPoint()
+        # best_contact_uv1 = best_contact_point.contact_points_uv[0]
+        # point_left.u, point_left.v = best_contact_uv1[0], best_contact_uv1[1]
 
-            # set goal        
-            goal = goal_pose
-
-            # Derive stable push path
-            self.planner.update_map(map_corners, map_obstacles)
-            
-            if self.planner_config['image_type'] == 'masked':
-                input_image = np.multiply(depth_img, segmask_img)
-            else: 
-                input_image = np.nan_to_num(depth_img)
-                
-            best_path, plan_successful = self.planner.plan(
-                input_image, contact_points, goal, #depth_img * segmask_img is for masked depth image
-                learning_base=self.planner_config['learning_base'],
-                visualize=self.planner_config['visualize'])
-
-            # Make ros msg
-            path_msg = Path()
-            path_msg.header.frame_id = camera_pose_msg.header.frame_id
-            path_msg.header.stamp = rospy.Time.now()
-            
-            if not plan_successful:
-                rospy.logwarn("Planning failed.")
-                
-                if i != len(target_id_list) - 1:
-                    continue
-                
-                best_path = [[1,1,10], [10,1,2]]
-            
-            for each_point in best_path:
-                pose_stamped = PoseStamped()
-                pose_stamped.header.stamp = rospy.Time.now()
-                pose_stamped.header.frame_id = camera_pose_msg.header.frame_id
-                pose_stamped.pose.position.x, pose_stamped.pose.position.y, pose_stamped.pose.position.z = each_point[0], each_point[1], self.planner_config['height']
-                pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_euler(each_point[2],0,0-np.pi, axes='rzyx')
-                path_msg.poses.append(pose_stamped)
-
-            return path_msg, plan_successful
+        # point_right = ContactPoint()
+        # best_contact_uv2 = best_contact_point.contact_points_uv[1]
+        # point_right.u, point_right.v = best_contact_uv2[0], best_contact_uv2[1]
+        
+        # push_contact = [point_left, point_right]
+        pose = [best_pose[0], best_pose[1]]
+        rospy.loginfo('Successfully generate path path')
+        res.path = path_msg
+        res.gripper_pose = pose
+        print("[", np.rad2deg(best_pose[0]), best_pose[1], "]")
+        return res
         
     def parse_push_target_msg(self, push_target_array_msg):
         ''' Parse push target array msg to target ids and push directions.'''

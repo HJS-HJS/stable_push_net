@@ -7,3 +7,4 @@ float32[] goal_pose  # (x, y, theta)
 ---
 nav_msgs/Path path
 # ContactPoint[] push_contact
+float32[] gripper_pose  # (theta, width)

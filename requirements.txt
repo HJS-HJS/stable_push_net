@@ -1,5 +1,7 @@
 corgipath
 collision
 seaborn
+scikit-learn
 scipy
 shapely
+torch

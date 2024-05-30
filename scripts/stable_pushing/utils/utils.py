@@ -4,6 +4,7 @@ import numpy as np
 from typing import List, Union
 from scipy.spatial.transform import Rotation as R
 from scipy import ndimage
+import cv2
 
 def tmat(pose):
     ''' Pose datatype conversion
@@ -45,13 +46,14 @@ def square_board(samples: int=2000) -> List[Union[float, float]]:
     Returns:
         List[Union[float, float]]: Point list with [x, y]. x=[-1,1], y=[0,1]
     """
-    _z_num = 5
-    _root = int(np.sqrt(samples / _z_num))
-    while True:
-        if (samples / _z_num)%_root==0:
-            break
-        else:
-            _root += 1
+    _z_num = 4
+    # _root = int(np.sqrt(samples / _z_num))
+    # while True:
+    #     if (samples / _z_num)%_root==0:
+    #         break
+    #     else:
+    #         _root += 1
+    _root = 100
 
     _x = np.linspace(-1, 1, _root)
     _x = np.sign(_x) * np.power(_x, 2)

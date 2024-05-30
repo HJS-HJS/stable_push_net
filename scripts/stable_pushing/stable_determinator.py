@@ -49,7 +49,7 @@ class StablePushNetDeterminator(object):
         self.masked_image_mean = self.image_mean
         self.masked_image_std  = self.image_std
     
-        self.velocity_num = 2000
+        self.velocity_num = cfg['network_input']
         # self.velocities = model_input(self.velocity_num, [None, None, None])
         self.velocities, self.real_velocities, self.shape = checker_input(self.velocity_num, [None, None, None])
         self.velocity_mean = np.load(data_stats_folder_path + '/velocity_mean.npy')
@@ -133,25 +133,27 @@ class StablePushNetDeterminator(object):
             results = torch.nn.Softmax(dim=1)(outputs)[:,1]
             qualities = results.detach().numpy()
             
-        _stability = np.where(qualities > self.threshold, 1, 0).T
+        _stability = qualities.reshape(self.shape)
+        _stability = np.where(_stability > self.threshold, 1, 0).T
+        # print(_stability)
         print(np.sum(_stability, axis=2))
         _arg = np.argmax(np.sum(_stability, axis=2))
         # _arg = np.argmin(np.sum(_stability, axis=2))
         _arg = int((_arg % self.shape[1]) * self.shape[2] + (_arg // self.shape[1]))
-        print("arg:", _arg)
+        # print("arg:", _arg)
         max_input = self.real_velocities[np.arange(_arg, self.shape[0]*self.shape[1]*self.shape[2], self.shape[1]*self.shape[2]).astype(int),:]
-        print(max_input.shape)
-        print(max_input)
+        # print(max_input.shape)
+        # print(max_input)
         max_results = np.squeeze(qualities)[np.arange(_arg, self.shape[0]*self.shape[1]*self.shape[2], self.shape[1]*self.shape[2]).astype(int)]
-        print(max_results.shape)
-        print(max_results)
-        print(np.where(max_results>0.8,1,0))
-        icr_list = max_input[np.where(max_results>0.8)]
-        print(icr_list)
+        # print(max_results.shape)
+        # print(max_results)
+        # print(np.where(max_results>self.threshold,1,0))
+        icr_list = max_input[np.where(max_results>self.threshold)]
+        # print(icr_list)
         # print(np.where(icr_list[:,0] > 0, 1, 0))
         right_min_radius = np.argmin(np.where(icr_list[:,0] > 0, 1, -10000) * icr_list[:,0])
         left_min_radius = np.argmax(np.where(icr_list[:,0] < 0, 1, -10000) * icr_list[:,0])
-        print(right_min_radius, left_min_radius)
+        # print(right_min_radius, left_min_radius)
         print(icr_list[right_min_radius], icr_list[left_min_radius])
 
         # try:
@@ -165,7 +167,7 @@ class StablePushNetDeterminator(object):
 
 
         # return quality
-        return icr_list[right_min_radius], icr_list[left_min_radius]
+        return np.abs(icr_list[right_min_radius]), np.abs(icr_list[left_min_radius])
     
     def check_all_velocities(self, depth_image, contact_point):
         """

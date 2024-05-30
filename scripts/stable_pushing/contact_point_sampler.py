@@ -234,10 +234,19 @@ class ContactPointSampler(object):
             sorted_idx = []
             for i in range(self.num_push_dirs):
                 sorted_idx.append(np.argmin(abs(contact_pair_angles - i / self.num_push_dirs * 360)))
+                # print(np.mi-n(abs(contact_pair_angles - i / self.num_push_dirs * 360)), np.min(abs(i / self.num_push_dirs * 360)))
         contact_points = []
         
         for idx in sorted_idx:
             contact_points.append(ContactPoint(edge_list_xyz, edge_list_uv, contact_pair_xyz[idx], contact_pair_uv[idx], pushing_directions[idx]))
+        
+        # fig = plt.figure(figsize=(10,10))
+        # ax = fig.add_subplot(111)
+        # ax.scatter(edge_list_xyz[:,0], edge_list_xyz[:,1], c='k', marker='o')
+        # for idx in sorted_idx:
+        #     ax.arrow(contact_pair_centers_xy[idx,0], contact_pair_centers_xy[idx,1], pushing_directions[idx,0], pushing_directions[idx,1], width=0.001, color='r')
+        # ax.set_aspect('equal')
+        # plt.show()
 
         return contact_points
     
@@ -285,9 +294,11 @@ class ContactPointSampler(object):
         '''
         
         # Get point cloud of the object only
+        # depth_image = depth_image * segmask
+        # pcd = self.depth_to_pcd(depth_image, camera_intrinsic)
+        # pcd_object = pcd[np.where(pcd[:,2] > 0.1)[0]]
         depth_image = depth_image * segmask
-        pcd = self.depth_to_pcd(depth_image, camera_intrinsic)
-        pcd_object = pcd[np.where(pcd[:,2] > 0.1)[0]]
+        pcd_object = self.depth_to_pcd(depth_image, camera_intrinsic)
         
         # Transform point cloud to world frame
         pcd_w = (np.matmul(camera_extr[:3,:3], pcd_object[:,:3].T) + camera_extr[:3,3].reshape(3,1)).T
@@ -296,10 +307,14 @@ class ContactPointSampler(object):
         #  Height Thresholding ##
         #########################
         
-        threshold_height = 0.01
-        # Remove points that are too close to the ground
-        pcd_w = pcd_w[np.where(pcd_w[:,2] > threshold_height)[0]]
+        # threshold_height = 0.01
+        ## Remove points that are too close to the ground
+        # pcd_w = pcd_w[np.where(pcd_w[:,2] > threshold_height)[0]]
         
+        max_height = np.max(pcd_w[:,2]) - (np.max(pcd_w[:,2]) - np.min(pcd_w[:,2])) * 0.1
+        pcd_w = pcd_w[np.where(pcd_w[:,2] < max_height)[0]]
+        min_height = np.min(pcd_w[:,2]) + (np.max(pcd_w[:,2]) - np.min(pcd_w[:,2])) * 0.05
+        pcd_w = pcd_w[np.where(pcd_w[:,2] > min_height)[0]]
         ##########################################
         # Edge Detection - alpha shape algorithm #
         ##########################################
@@ -338,24 +353,29 @@ class ContactPointSampler(object):
         outermost_points = pcd_w_2d[outermost_indices]
         
         # Extract x and y coordinates from the contour points
-        x = outermost_points[:, 0]
-        y = outermost_points[:, 1]
-        num_interpolated_points = 500
-        # Create an interpolation function for x and y coordinates separately
-        interpolation_function_x = interp1d(np.arange(len(x)), x, kind='linear')
-        interpolation_function_y = interp1d(np.arange(len(y)), y, kind='linear')
+        # x = outermost_points[:, 0]
+        # y = outermost_points[:, 1]
+        # num_interpolated_points = 500
+        # # Create an interpolation function for x and y coordinates separately
+        # interpolation_function_x = interp1d(np.arange(len(x)), x, kind='linear')
+        # interpolation_function_y = interp1d(np.arange(len(y)), y, kind='linear')
 
-        # Generate evenly spaced indices for interpolation
-        interpolation_indices = np.linspace(0, len(x)-1, num=num_interpolated_points)
+        # # Generate evenly spaced indices for interpolation
+        # interpolation_indices = np.linspace(0, len(x)-1, num=num_interpolated_points)
 
-        # Interpolate x and y coordinates using the interpolation functions
-        x_interpolated = interpolation_function_x(interpolation_indices)
-        y_interpolated = interpolation_function_y(interpolation_indices)
+        # # Interpolate x and y coordinates using the interpolation functions
+        # x_interpolated = interpolation_function_x(interpolation_indices)
+        # y_interpolated = interpolation_function_y(interpolation_indices)
 
-        # Create the interpolated trajectory with m points (m, 2)
-        interpolated_contour_points = np.column_stack((x_interpolated, y_interpolated))
-        edge_list_xyz = np.hstack([interpolated_contour_points, 0.005 * np.zeros(len(interpolated_contour_points)).reshape(-1,1)]).reshape(-1,3)
+        # # Create the interpolated trajectory with m points (m, 2)
+        # interpolated_contour_points = np.column_stack((x_interpolated, y_interpolated))
+        # edge_list_xyz = np.hstack([interpolated_contour_points, 0.005 * np.zeros(len(interpolated_contour_points)).reshape(-1,1)]).reshape(-1,3)
         
+
+        num_interpolated_points = 1000
+        outermost_indices = np.append(outermost_indices, outermost_indices[0])
+        edge_list_xyz = self.interpolate_with_even_distance(pcd_w[outermost_indices], num_interpolated_points)
+
         # Get uv coordinates of the edge list
         edge_list_xyz_camera = (np.matmul(np.linalg.inv(camera_extr)[:3,:3], edge_list_xyz[:,:3].T) + np.linalg.inv(camera_extr)[:3,3].reshape(3,1)).T
         edge_list_uvd = edge_list_xyz_camera @ camera_intrinsic.T
@@ -421,6 +441,44 @@ class ContactPointSampler(object):
         m = geometry.MultiLineString(edge_points)
         triangles = list(polygonize(m))
         return cascaded_union(triangles), edge_points
+    
+    @staticmethod
+    def interpolate_with_even_distance(trajectory, num_sample):
+        '''
+        From a trajectory, interpolate the points with even Euclidean distances (xy-plane).
+        
+        Args:
+            trajectory (N,3): Trajectory points
+            num_sample (int): Number of points to be sampled
+        Returns:
+            interpolated_trajectory (num_sample,3): Interpolated trajectory points
+        '''
+        # Extract the x and y coordinates from the trajectory
+        x = trajectory[:, 0]
+        y = trajectory[:, 1]
+        z = trajectory[:, 2]
+
+        # Compute the cumulative distance along the trajectory
+        distances = np.cumsum(np.sqrt(np.diff(x) ** 2 + np.diff(y) ** 2))
+        distances = np.insert(distances, 0, 0)  # Prepend a zero for the initial position
+
+        # Create an interpolation function for x and y coordinates
+        interp_func_x = interp1d(distances, x, kind='linear')
+        interp_func_y = interp1d(distances, y, kind='linear')
+        interp_func_z = interp1d(distances, z, kind='linear')
+
+        # Generate evenly spaced distances for the interpolated points
+        target_distances = np.linspace(0, distances[-1], num_sample)
+
+        # Interpolate the x and y coordinates at the target distances
+        interpolated_x = interp_func_x(target_distances)
+        interpolated_y = interp_func_y(target_distances)
+        interpolated_z = interp_func_z(target_distances)
+
+        # Return the interpolated x and y coordinates as a (m, 2) trajectory
+        interpolated_trajectory = np.column_stack((interpolated_x, interpolated_y, interpolated_z))
+        return interpolated_trajectory
+    
     @staticmethod
     def pcd_idx_to_uv_coordinates(contact_pair_idx, depth_img_shape):
         """Get xy pixel coordinates from point cloud indices

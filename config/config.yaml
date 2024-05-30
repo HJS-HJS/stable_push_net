@@ -1,14 +1,18 @@
 data_path: /home/rise/catkin_ws/src/data
-data_dir: catkin_ws/src/stable_push_net_ros/models/2024-05-20-0000
-model_dir: catkin_ws/src/stable_push_net_ros/models
+data_dir: catkin_ws/src/push_planners/twc-stable_push_net_ros/models/2024-05-20-0000
+model_dir: catkin_ws/src/push_planners/twc-stable_push_net_ros/models
 
 
 # Inference Configuration
 planner:
   gripper_width: 0.08
-  height: 0.015
-  num_push_directions: 4 
-  visualize: False
+  # height: 0.02
+  height: 0.03
+  # height: 0.05
+  num_push_directions: 8
+
+  visualize: True
+  # visualize: False
   image_type: 'masked_image'
 
 depth_based:
@@ -16,7 +20,6 @@ depth_based:
 
 network:
   model_name: "2024-05-20-0000"
-  network_threshold: 0.2
 
 hybrid:
   grid_size: 0.05  # unit: m
@@ -30,7 +33,9 @@ train_l2_regularizer: 0.0005
 batch_size: 64
 num_epochs: 10
 momentum_rate: 0.9
-network_threshold: 0.01
+network_threshold: 0.4
+# network_threshold: 0.5
+network_input: 4000
 StablePushNet:
   image_height: 96
   image_width: 96
