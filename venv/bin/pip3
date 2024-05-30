@@ -1,4 +1,4 @@
-#!/home/rise/catkin_ws/src/stable_push_net_ros/venv/bin/python
+#!/home/cloudrobot2/catkin_ws/src/push_planners/twc-stable-push-net-ros/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

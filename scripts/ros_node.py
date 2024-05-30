@@ -42,7 +42,7 @@ class StablePushNetServer(object):
 
         # initialize ros service
         rospy.Service(
-            '~get_stable_push_path',
+            '/stable_push_planner/get_stable_push_path',
             GetStablePushPath,
             self.get_stable_push_path_handler)
 
