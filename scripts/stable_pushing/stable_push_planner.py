@@ -16,7 +16,6 @@ from corgipath.matplot import live_draw as live
 from corgipath.matplot.utils import pick_color, auto_scale
 
 from .utils.hybrid_astar import HybridAstarTrajectory
-# from .utils.utils import crop_image
 from .stable_push_utils.utils import crop_image
 from .contact_point_sampler import ContactPoint
 from .stable_determinator import StablePushNetDeterminator, DepthImageBasedDeterminator
