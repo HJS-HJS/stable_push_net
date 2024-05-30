@@ -62,6 +62,7 @@ add_message_files(
 add_service_files(
   FILES
   GetStablePushPath.srv
+  GetStablePushPathModule.srv
 )
 
 ## Generate actions in the 'action' folder

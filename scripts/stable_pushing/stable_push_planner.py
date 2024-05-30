@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os
-import datetime
 import copy
 from dataclasses import dataclass
-import yaml
 import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
@@ -20,7 +17,7 @@ from corgipath.matplot.utils import pick_color, auto_scale
 
 from .utils.hybrid_astar import HybridAstarTrajectory
 from .utils.utils import crop_image
-from .contact_point_sampler import ContactPoint, ContactPointSampler
+from .contact_point_sampler import ContactPoint
 from .stable_determinator import StablePushNetDeterminator, DepthImageBasedDeterminator
 from scipy.interpolate import CubicSpline
 

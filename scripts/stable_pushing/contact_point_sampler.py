@@ -1,5 +1,4 @@
 import numpy as np
-import cv2
 from scipy.spatial import distance_matrix
 from scipy.spatial.distance import cdist
 from matplotlib import pyplot as plt
@@ -12,7 +11,6 @@ from scipy.spatial import Delaunay
 import shapely.geometry as geometry
 import math
 from shapely.ops import cascaded_union, polygonize
-from shapely import Polygon, MultiPolygon
 
 
 class ContactPoint(object):
