@@ -1,10 +1,13 @@
+# Scene information
+vision_msgs/Detection2DArray dish_segmentation
+vision_msgs/BoundingBox3D table_detection
 sensor_msgs/Image depth_image
-sensor_msgs/Image segmask
 sensor_msgs/CameraInfo cam_info
-geometry_msgs/PoseStamped cam_pose
-MapInfo map_info
-float32[] goal_pose  # (x, y, theta)
+geometry_msgs/PoseStamped camera_pose
+
+# Push target information
+PushTargetArray push_targets
 ---
 nav_msgs/Path path
-# ContactPoint[] push_contact
-float32[] gripper_pose  # (theta, width)
+bool plan_successful
+float32[] gripper_pose
