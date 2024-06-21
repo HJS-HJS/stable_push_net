@@ -803,7 +803,8 @@ class HybridAstarPushPlanner(object):
 
         # Combine the interpolated x, y, and theta into a new motion path
         interpolated_motion_path = np.column_stack((interpolated_x, interpolated_y, interpolated_theta))
-        return interpolated_motion_path, shortest_contact_point, shortest_pose
+        # return interpolated_motion_path, shortest_contact_point, shortest_pose
+        return interpolated_motion_path, True, shortest_pose
 class RRTPushPlanner(object):
     def __init__(self):
         pass
