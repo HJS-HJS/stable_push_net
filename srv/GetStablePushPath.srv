@@ -2,7 +2,7 @@
 vision_msgs/Detection2DArray dish_segmentation
 vision_msgs/BoundingBox3D table_detection
 sensor_msgs/Image depth_image
-sensor_msgs/CameraInfo cam_info
+sensor_msgs/CameraInfo camera_info
 geometry_msgs/PoseStamped camera_pose
 
 # Push target information
