@@ -1,8 +1,8 @@
 input_range:
   MAX_R: 0.5
   MIN_R: -1.5
-  MAX_A: 30
-  MIN_A: 0
+  MAX_A: 90
+  MIN_A: 60
   MAX_L: 0.270
   MIN_L: 0.1188
   # MIN_L: 0.07
