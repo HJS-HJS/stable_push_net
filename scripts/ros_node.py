@@ -184,7 +184,7 @@ class StablePushNetModuleServer(object):
         rospy.loginfo('StablePushNetServer is ready to serve.')
     
     @staticmethod
-    def collision_circles_to_obstacles(dishes):
+    def collision_circles_to_obstacles(dishes, target_id_list):
         """Conver Circle msg to collision.Circle object.
 
         Args:
@@ -214,7 +214,7 @@ class StablePushNetModuleServer(object):
         dish_seg_msg = request.dish_segmentation
         table_det_msg = request.table_detection
         depth_img_msg = request.depth_image
-        camera_info_msg = request.cam_info
+        camera_info_msg = request.camera_info
         camera_pose_msg = request.camera_pose
         push_target_array_msg = request.push_targets
         
@@ -238,14 +238,7 @@ class StablePushNetModuleServer(object):
         dish_shape_list = self.map_interface.get_dish_shapes(id_list, segmask_list, depth_img, cam_pos, cam_intr)
         rospy.loginfo("{} Dishes are segmented".format(len(dish_shape_list)))
 
-
-        # map size
-        # map_corners = [
-        #     map_info_msg.corners[0].x,
-        #     map_info_msg.corners[1].x,
-        #     map_info_msg.corners[0].y,
-        #     map_info_msg.corners[1].y]
-        map_corners = self.parse_table_detection_msg(table_det_msg) # min_x, max_x, min_y, max_y
+        map_corners, rot_matrix = self.parse_table_detection_msg(table_det_msg) # min_x, max_x, min_y, max_y
         
         # obstacle position, size
         # map_obstacles = self.collision_circles_to_obstacles(dish_seg_msg.detections, target_id_list)
@@ -276,14 +269,14 @@ class StablePushNetModuleServer(object):
 
             # Generate push path
             best_path, is_success, best_pose = self.planner.plan(
-                image, contact_points, goal, #depth_img * segmask_img is for masked depth image
-                learning_base=True,
+                image, #depth_img * segmask_img is for masked depth image
+                contact_points, 
+                goal,
                 visualize=self.planner_config['visualize'])
             print("[", np.rad2deg(best_pose[0]), best_pose[1], "]")
 
             if not is_success:
                 best_path = []
-
 
             # Make ros msg
             res = GetStablePushPathResponse()   
@@ -294,8 +287,15 @@ class StablePushNetModuleServer(object):
                 pose_stamped = PoseStamped()
                 pose_stamped.header.stamp = rospy.Time.now()
                 pose_stamped.header.frame_id = camera_pose_msg.header.frame_id
-                pose_stamped.pose.position.x, pose_stamped.pose.position.y, pose_stamped.pose.position.z = each_point[0], each_point[1], self.planner_config['height']
-                pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_euler(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')
+                pose_stamped.pose.position.x, pose_stamped.pose.position.y = each_point[0], each_point[1]
+                pose_stamped.pose.position.z = self.planner_config['height'] + self.cal_path_height(each_point[0], each_point[1])
+
+                print(np.rad2deg(tft.euler_from_quaternion(tft.quaternion_from_euler(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'), axes='rzxy')), np.rad2deg(tft.quaternion_from_matrix(np.dot(rot_matrix, tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')))))
+                
+
+                # pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_euler(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')
+                # pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_matrix(np.dot(tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'), rot_matrix))
+                pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_matrix(np.dot(rot_matrix, tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')))
                 path_msg.poses.append(pose_stamped)
             
             # Response the ROS service
@@ -303,6 +303,7 @@ class StablePushNetModuleServer(object):
             res.path = path_msg
             res.plan_successful = is_success
             res.gripper_pose = [best_pose[0], best_pose[1]]
+            print(res.gripper_pose)
             return res
 
     def parse_push_target_msg(self, push_target_array_msg):
@@ -353,20 +354,21 @@ class StablePushNetModuleServer(object):
     def parse_table_detection_msg(self, table_det_msg):
         ''' Parse table detection msg to table pose.'''
         
-        position_msg = table_det_msg.center.position
+        self.position_msg = table_det_msg.center.position
         orientation_msg = table_det_msg.center.orientation
-        size_msg = table_det_msg.size
+        self.size_msg = table_det_msg.size
         
-        position = np.array([position_msg.x, position_msg.y, position_msg.z])
+        position = np.array([self.position_msg.x, self.position_msg.y, self.position_msg.z])
         orientation = np.array([orientation_msg.x, orientation_msg.y, orientation_msg.z, orientation_msg.w])
         
         rot_mat = tft.quaternion_matrix(orientation)[:3,:3]
+        self.n_vector = rot_mat[:,2]
         
         # Get local positions of vertices 
         vertices_loc = []
-        for x in [-size_msg.x/2, size_msg.x/2]:
-            for y in [-size_msg.y/2, size_msg.y/2]:
-                for z in [-size_msg.z/2, size_msg.z/2]:
+        for x in [-self.size_msg.x/2, self.size_msg.x/2]:
+            for y in [-self.size_msg.y/2, self.size_msg.y/2]:
+                for z in [-self.size_msg.z/2, self.size_msg.z/2]:
                     vertices_loc.append([x,y,z])
         vertices_loc = np.array(vertices_loc)
         
@@ -376,8 +378,15 @@ class StablePushNetModuleServer(object):
         x_max, x_min = np.max(vertices_world[:,0]), np.min(vertices_world[:,0])
         y_max, y_min = np.max(vertices_world[:,1]), np.min(vertices_world[:,1])
         # z_max, z_min = np.max(vertices_world[:,2]), np.min(vertices_world[:,2])
-            
-        return [x_min, x_max, y_min, y_max]
+
+        return [x_min, x_max, y_min, y_max], tft.quaternion_matrix(orientation)
+
+    def cal_path_height(self, x, y):
+        ''' Parse table detection msg to table pose.'''
+        
+        _z = self.position_msg.z - self.n_vector[0] / self.n_vector[2] * (x - self.position_msg.x) - self.n_vector[1] / self.n_vector[2] * (y - self.position_msg.y) + self.size_msg.z/2
+
+        return _z
 
 if __name__ == '__main__':
     rospy.init_node('stable_push_net_server')

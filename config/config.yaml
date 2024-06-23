@@ -7,14 +7,15 @@ model_dir: catkin_ws/src/push_planners/twc-stable-push-net-ros/models
 
 # Inference Configuration
 planner:
-  gripper_width: 0.08
+  # gripper_width: 0.08
+  gripper_width: 0.075
   # height: 0.02
   height: 0.03
   # height: 0.05
   num_push_directions: 8
 
-  visualize: True
-  # visualize: False
+  # visualize: True
+  visualize: False
   image_type: 'masked_image'
 
 depth_based:

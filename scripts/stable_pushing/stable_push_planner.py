@@ -624,7 +624,7 @@ class HybridAstarPushPlanner(object):
                 fn_terminal_condition=self._cartesian_terminal_condition,)
         return waypoints
 
-    def _plan(self, depth_image, contact_point, goal, learning_base=False, visualize=True):
+    def _plan(self, depth_image, contact_point, goal, visualize=True):
         """Get stable push path from a given contact point and goal.
 
         Args:
