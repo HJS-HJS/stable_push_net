@@ -267,6 +267,15 @@ class StablePushNetModuleServer(object):
             self.planner.update_map(map_corners, map_obstacles)
             image = np.multiply(depth_img, segmask_img)
 
+            # fig = plt.figure()
+            # ax1 = fig.add_subplot(221)
+            # ax1.imshow(depth_img)
+            # ax2 = fig.add_subplot(222)
+            # ax2.imshow(segmask_img)
+            # ax3 = fig.add_subplot(223)
+            # ax3.imshow(image)
+            # plt.show()
+
             # Generate push path
             best_path, is_success, best_pose = self.planner.plan(
                 image, #depth_img * segmask_img is for masked depth image
@@ -290,9 +299,8 @@ class StablePushNetModuleServer(object):
                 pose_stamped.pose.position.x, pose_stamped.pose.position.y = each_point[0], each_point[1]
                 pose_stamped.pose.position.z = self.planner_config['height'] + self.cal_path_height(each_point[0], each_point[1])
 
-                print(np.rad2deg(tft.euler_from_quaternion(tft.quaternion_from_euler(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'), axes='rzxy')), np.rad2deg(tft.quaternion_from_matrix(np.dot(rot_matrix, tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')))))
-                
-
+                # print(np.rad2deg(tft.euler_from_quaternion(tft.quaternion_from_euler(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'), axes='rzxy')), np.rad2deg(tft.quaternion_from_matrix(np.dot(rot_matrix, tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')))))
+            
                 # pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_euler(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')
                 # pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_matrix(np.dot(tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'), rot_matrix))
                 pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_matrix(np.dot(rot_matrix, tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')))

@@ -1,0 +1,11 @@
+input_range:
+  MAX_R: 0.5
+  MIN_R: -1.5
+  MAX_A: 90
+  MIN_A: 0
+  MAX_L: 0.080
+  MIN_L: 0.075
+
+network_threshold: 0.4
+network_input: 4000
+network_input_shape: [100, 10, 4]

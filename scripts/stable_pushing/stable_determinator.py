@@ -20,6 +20,12 @@ class StablePushNetDeterminator(object):
         # Load configuation file
         with open(config_file,'r') as f:
             cfg = yaml.load(f, Loader=yaml.FullLoader)
+
+        config_file = os.path.abspath(os.path.join(current_file_path, '..', '..', 'models', cfg['network']["model_name"], 'network_config.yaml'))
+
+        # Load configuation file
+        with open(config_file,'r') as f:
+            network_cfg = yaml.load(f, Loader=yaml.FullLoader)
         
         self.image_type = cfg['planner']['image_type']
         # Initialize network
@@ -29,14 +35,14 @@ class StablePushNetDeterminator(object):
         model_folder_path = os.path.expanduser('~') + '/' + cfg["model_dir"]
         model_name = cfg['network']["model_name"]
         model_path = os.path.join(model_folder_path, model_name, "model.pt")
-        self.threshold =  cfg["network_threshold"]
+        self.threshold =  network_cfg["network_threshold"]
         self.model = PushNet()
         self.model.to(self.device)
         self.model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
         
         # Normalize input data
-        data_path = os.path.expanduser('~') + '/' + cfg['data_dir']
-        data_stats_folder_path = data_path+ '/data_stats'
+        data_path = os.path.expanduser('~') + '/' + cfg["model_dir"] + '/' + cfg['network']["model_name"]
+        data_stats_folder_path = data_path + '/data_stats'
         try:
             self.image_mean = np.load(data_stats_folder_path + "/" + self.image_type + "_mean.npy")
             self.image_std  = np.load(data_stats_folder_path + "/" + self.image_type + "_std.npy")
@@ -46,11 +52,16 @@ class StablePushNetDeterminator(object):
         self.masked_image_mean = self.image_mean
         self.masked_image_std  = self.image_std
     
-        self.velocity_num = cfg['network_input']
-        self.velocities, self.real_velocities, self.shape = checker_input(self.velocity_num, [None, None, None])
+        self.velocity_num = network_cfg['network_input']
+        self.velocities, self.real_velocities, self.shape = checker_input(samples=self.velocity_num, sample_shape=network_cfg["network_input_shape"], input_range=network_cfg["input_range"], mode=[None, None, None])
         self.velocity_mean = np.load(data_stats_folder_path + '/velocity_mean.npy')
         self.velocity_std = np.load(data_stats_folder_path + '/velocity_std.npy')
         self.normalized_velocities = (self.velocities - self.velocity_mean) / self.velocity_std
+
+        print("self.image_mean: ", self.image_mean)
+        print("self.image_std: ", self.image_std)
+        print("self.velocity_mean: ", self.velocity_mean)
+        print("self.velocity_std: ", self.velocity_std)
         
 
     def is_stable(self, depth_image, contact_point, icr):
