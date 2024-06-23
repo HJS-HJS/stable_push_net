@@ -18,7 +18,7 @@ from stable_push_net_ros.srv import GetStablePushPathTest, GetStablePushPathTest
 from stable_push_net_ros.msg import PushTarget
 from stable_pushing.stable_push_planner import HybridAstarPushPlanner
 from stable_pushing.stable_determinator import StablePushNetDeterminator
-from stable_pushing.stable_push_utils.contact_point_sampler import ContactPointSampler
+from stable_pushing.utils.contact_point_sampler import ContactPointSampler
 from stable_pushing.map_interface import MapInterface
 
 class StablePushNetServer(object):
@@ -233,6 +233,8 @@ class StablePushNetModuleServer(object):
         depth_img = self.cv_bridge.imgmsg_to_cv2(depth_img_msg, desired_encoding='passthrough')
         # camera intrinsic to matrix
         cam_intr = np.array(camera_info_msg.K).reshape(3, 3)
+        print("cam_intr: ")
+        print(cam_intr)
 
         segmask_list, id_list = self.parse_dish_segmentation_msg(dish_seg_msg)
         dish_shape_list = self.map_interface.get_dish_shapes(id_list, segmask_list, depth_img, cam_pos, cam_intr)

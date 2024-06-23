@@ -4,8 +4,8 @@ import os
 import yaml
 import torch
 import numpy as np
-from .stable_push_utils.model import PushNet
-from .stable_push_utils.utils import checker_input, crop_image
+from .utils.model import PushNet
+from .utils.utils import checker_input, crop_image
 from .utils.stable_region_analytical import StableRegion
 torch.multiprocessing.set_sharing_strategy('file_system')
 
