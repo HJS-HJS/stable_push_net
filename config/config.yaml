@@ -7,16 +7,14 @@ model_dir: catkin_ws/src/push_planners/twc-stable-push-net-ros/models
 
 # Inference Configuration
 planner:
-  # gripper_width: 0.08
+  gripper: "vertical"
   gripper_width: 0.075
-  # height: 0.02
   height: 0.03
-  # height: 0.05
   num_push_directions: 8
 
   # visualize: True
   visualize: False
-  image_type: 'masked_image'
+  image_type: "masked_image"
 
 depth_based:
   friction_coefficient: 1
@@ -43,3 +41,18 @@ StablePushNet:
   image_height: 96
   image_width: 96
   batch_size: 64
+
+gripper:
+  vertical:
+    height: 0.03
+    z_angle: 0
+    finger_angle: 180 # robotiq2f
+    x_offset: 0
+
+
+  hanyang:
+    height: 0.015
+    z_angle: 0
+    finger_angle: 120 # hanyang
+    x_offset: -0.038990381
+
