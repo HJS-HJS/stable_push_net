@@ -222,10 +222,19 @@ def crop_image(depth_image, push_contact, focal_x: float=1365.39124, focal_y: fl
         center_y, center_x = np.round(H/2).astype(int), np.round(W/2).astype(int)
         # crop_size_unit = int(H/2/3)
         # crop_size_unit = 75
-        crop_size_unit_x = int(118 / (893.8 / focal_x))
-        crop_size_unit_y = int(118 / (893.8 / focal_y))
-        # crop_size_unit_x = int(118)
-        # crop_size_unit_y = int(118)
+        # crop_size_unit_x = int(118 / (893.8 / focal_x))
+        # crop_size_unit_y = int(118 / (893.8 / focal_y))
+        # crop_size_unit_x = int(180)
+        # crop_size_unit_y = int(180)
+        crop_size_unit_x = int(190)
+        crop_size_unit_y = int(190)
+
+        # print(rotated_img.shape)
+        rotated_img = np.pad(rotated_img, ((crop_size_unit_y, crop_size_unit_y),(crop_size_unit_x, crop_size_unit_x)), mode='constant')
+        H,W = rotated_img.shape
+        # print(rotated_img.shape)
+        center_y, center_x = np.round(H/2).astype(int), np.round(W/2).astype(int)
+
         cropped_img = rotated_img[center_y - 3*crop_size_unit_y : center_y + crop_size_unit_y, center_x  - 2*crop_size_unit_x : center_x  + 2*crop_size_unit_x]
         
         # Resize the image to the network input size (96 x 96)
@@ -235,8 +244,10 @@ def crop_image(depth_image, push_contact, focal_x: float=1365.39124, focal_y: fl
         # matplotlib.use('TkAgg')
         # import matplotlib.pyplot as plt
         # fig = plt.figure()
-        # ax1 = fig.add_subplot(111)
-        # ax1.imshow(cropped_img)
+        # ax1 = fig.add_subplot(211)
+        # ax1.imshow(depth_image)
+        # ax2 = fig.add_subplot(212)
+        # ax2.imshow(cropped_img)
         # plt.show()
 
         return cropped_img

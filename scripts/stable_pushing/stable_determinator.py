@@ -53,7 +53,8 @@ class StablePushNetDeterminator(object):
         self.masked_image_std  = self.image_std
     
         self.velocity_num = network_cfg['network_input']
-        self.velocities, self.real_velocities, self.shape = checker_input(samples=self.velocity_num, sample_shape=network_cfg["network_input_shape"], input_range=network_cfg["input_range"], mode=[None, None, None])
+        # self.velocities, self.real_velocities, self.shape = checker_input(samples=self.velocity_num, sample_shape=network_cfg["network_input_shape"], input_range=network_cfg["input_range"], mode=[None, None, None])
+        self.velocities, self.real_velocities, self.shape = checker_input(samples=self.velocity_num, sample_shape=network_cfg["network_input_shape"], input_range=network_cfg["input_range"], mode=[None, 1.570796, 0.1340])
         self.velocity_mean = np.load(data_stats_folder_path + '/velocity_mean.npy')
         self.velocity_std = np.load(data_stats_folder_path + '/velocity_std.npy')
         self.normalized_velocities = (self.velocities - self.velocity_mean) / self.velocity_std

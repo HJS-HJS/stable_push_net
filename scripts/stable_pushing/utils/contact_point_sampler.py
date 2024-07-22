@@ -189,11 +189,11 @@ class ContactPointSampler(object):
         self.camera_extr = camera_extr
         self.gripper_width = gripper_width
         self.num_push_dirs = num_push_dirs
-        self._width_error_threshold = 1e-5
+        self._width_error_threshold = 1e-3
         
         self.push_dir_range = push_dir_range
         
-    def sample(self, depth_image, mask):
+    def sample(self, depth_image, mask, not_push_direction_range):
         edge_list_uv, edge_list_xyz = self.edge_list_using_pcd(depth_image, mask, self.camera_extr, self.camera_intr)
         contact_pair_uv, contact_pair_xyz = self.get_contact_points(edge_list_uv, edge_list_xyz)
         edge_center = edge_list_xyz.mean(0)
@@ -235,9 +235,21 @@ class ContactPointSampler(object):
                 # print(np.mi-n(abs(contact_pair_angles - i / self.num_push_dirs * 360)), np.min(abs(i / self.num_push_dirs * 360)))
         contact_points = []
         
+        def is_not_allowed(point, range):
+            orientation = (np.arctan2(point[1], point[0]))%(2*np.pi)
+            if(range[0] < orientation) and (range[1] > orientation):
+                return False
+            else: 
+                # print("ok")
+                return True
+            
+            
+
         for idx in sorted_idx:
-            contact_points.append(ContactPoint(edge_list_xyz, edge_list_uv, contact_pair_xyz[idx], contact_pair_uv[idx], pushing_directions[idx]))
-        
+            if is_not_allowed(pushing_directions[idx], not_push_direction_range):
+                contact_points.append(ContactPoint(edge_list_xyz, edge_list_uv, contact_pair_xyz[idx], contact_pair_uv[idx], pushing_directions[idx]))
+            else:
+                pass
         # fig = plt.figure(figsize=(10,10))
         # ax = fig.add_subplot(111)
         # ax.scatter(edge_list_xyz[:,0], edge_list_xyz[:,1], c='k', marker='o')

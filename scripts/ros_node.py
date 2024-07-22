@@ -21,6 +21,11 @@ from stable_pushing.stable_determinator import StablePushNetDeterminator
 from stable_pushing.utils.contact_point_sampler import ContactPointSampler
 from stable_pushing.map_interface import MapInterface
 
+# temp
+from moveit_msgs.msg import CartesianTrajectory, CartesianTrajectoryPoint
+from stable_push_net_ros.msg import CollisionCircle
+
+
 class StablePushNetServer(object):
     
     def __init__(self):
@@ -160,11 +165,13 @@ class StablePushNetModuleServer(object):
         self.planner_config = rospy.get_param("~planner")
         self.hybrid_config = rospy.get_param("~hybrid")
         self.depth_based_config = rospy.get_param("~depth_based")
+        self.gripper_config = rospy.get_param("~gripper")[self.planner_config["gripper"]]
 
         # print param to terminal
         rospy.loginfo("planner_config: {}".format(self.planner_config))
         rospy.loginfo("hybrid_config: {}".format(self.hybrid_config))
         rospy.loginfo("depth_based_config: {}".format(self.depth_based_config))
+        rospy.loginfo("depth_based_config: {}".format(self.gripper_config))
 
         # initialize ros service
         rospy.Service(
@@ -175,6 +182,11 @@ class StablePushNetModuleServer(object):
         # stable_determinator with trained model
         stable_determinator = StablePushNetDeterminator()
             
+        # temp Publisher for visualization
+        self.push_path_interpolated_pub = rospy.Publisher('/stable_push_server/moveit_msgs/cartersian/interpolated', CartesianTrajectory, queue_size=2)
+        self.push_path_pub = rospy.Publisher('/stable_push_server/moveit_msgs/cartersian', CartesianTrajectory, queue_size=2)
+        self.push_path_origin_pub = rospy.Publisher('/stable_push_server/push_path', Path, queue_size=2)
+
         self.planner = HybridAstarPushPlanner(
             stable_determinator=stable_determinator,
             grid_size=self.hybrid_config['grid_size'],
@@ -193,11 +205,39 @@ class StablePushNetModuleServer(object):
         Returns:
             obstacles (List[collision.Circle]): List of collision.Circle objects.
         """
+        circles = []
+        obs1 = CollisionCircle()
+        obs2 = CollisionCircle()
+        obs3 = CollisionCircle()
+        obs4 = CollisionCircle()
+        obs5 = CollisionCircle()
+        # obs1.x, obs1.y, obs1.r = -0.65, 0.1, 0.1
+        # circles.append(obs1)
+        # obs2.x, obs2.y, obs2.r = -0.65, 0.2, 0.1
+        # circles.append(obs2)
+        # obs4.x, obs4.y, obs4.r = -0.65, 0.3, 0.1
+        # circles.append(obs4)
+        # obs5.x, obs5.y, obs5.r = -0.65, 0.4, 0.1
+        # circles.append(obs5)
+        # obs1.x, obs1.y, obs1.r = -0.50, 0.05, 0.05
+        # circles.append(obs1)
+        obs2.x, obs2.y, obs2.r = -0.30, 0.05, 0.05
+        circles.append(obs2)
+        obs3.x, obs3.y, obs3.r = -0.15, 0.05, 0.05
+        circles.append(obs3)
+        # obs4.x, obs4.y, obs4.r = -0.70, 0.05, 0.05
+        # circles.append(obs4)
+        obs5.x, obs5.y, obs5.r = -0.40, 0.05, 0.05
+        circles.append(obs5)
         obstacles = []
         for dish in dishes:
             _r = dish.bbox.size_x if dish.bbox.size_x > dish.bbox.size_y else dish.bbox.size_y
             obstacles.append(collision.Circle(collision.Vector(dish.bbox.center.x, dish.bbox.center.y), _r))
             print("obs pose: ", dish.bbox.center.x, ", ", dish.bbox.center.y, "obs radius: ", _r)
+
+        obstacles = []
+        for circle in circles:
+            obstacles.append(collision.Circle(collision.Vector(circle.x, circle.y), circle.r))
         return obstacles
     
     def get_stable_push_path_handler(self, request):
@@ -222,6 +262,8 @@ class StablePushNetModuleServer(object):
         
         # Parse push target msg
         target_id_list, goal_pose_list, push_direction_range_list = self.parse_push_target_msg(push_target_array_msg)
+        push_direction_range_list = np.where(push_direction_range_list < 0, push_direction_range_list + 2 * np.pi, push_direction_range_list)
+        not_push_direction_range_list = np.fliplr(push_direction_range_list)
 
         # camera extrinsic to tf
         cam_pos_tran = [camera_pose_msg.pose.position.x, camera_pose_msg.pose.position.y, camera_pose_msg.pose.position.z]
@@ -233,8 +275,6 @@ class StablePushNetModuleServer(object):
         depth_img = self.cv_bridge.imgmsg_to_cv2(depth_img_msg, desired_encoding='passthrough')
         # camera intrinsic to matrix
         cam_intr = np.array(camera_info_msg.K).reshape(3, 3)
-        print("cam_intr: ")
-        print(cam_intr)
 
         segmask_list, id_list = self.parse_dish_segmentation_msg(dish_seg_msg)
         dish_shape_list = self.map_interface.get_dish_shapes(id_list, segmask_list, depth_img, cam_pos, cam_intr)
@@ -247,11 +287,13 @@ class StablePushNetModuleServer(object):
         map_obstacles = self.collision_circles_to_obstacles([], target_id_list)
         
         # Loop through push path planning until we find the push path
-        for i in range(len(target_id_list)):
+        # for i in range(len(target_id_list)):
+        for i in target_id_list:
             # Get current target ID
             target_id = target_id_list[i]
             goal_pose = goal_pose_list[i]
-            push_direction_range = push_direction_range_list[i]
+            not_push_direction_range = not_push_direction_range_list[i]
+
 
             # Get corresponding data
             segmask_img = segmask_list[target_id]
@@ -260,7 +302,7 @@ class StablePushNetModuleServer(object):
             cps = ContactPointSampler(cam_intr, cam_pos, 
                                     gripper_width = self.planner_config['gripper_width'],
                                     num_push_dirs = self.planner_config['num_push_directions'])
-            contact_points = cps.sample(depth_img, segmask_img)
+            contact_points = cps.sample(depth_img, segmask_img, not_push_direction_range)
 
             # set goal        
             goal = goal_pose
@@ -278,16 +320,33 @@ class StablePushNetModuleServer(object):
             # ax3.imshow(image)
             # plt.show()
 
+            if self.planner_config['visualize']:
+                fig = plt.figure(figsize=(10,10))
+                ax = fig.add_subplot(111)
+                ax.imshow(depth_img * segmask_img)
+                ax.scatter(contact_points[0].edge_uv[:,0], contact_points[0].edge_uv[:,1], c='k', marker='o')
+                for contact_point in contact_points:
+                    position = contact_point.contact_points_uv.mean(0)
+                    ax.scatter(position[0], position[1], c='r', marker='o')
+                ax.set_aspect('equal')
+                plt.show()
+
             # Generate push path
-            best_path, is_success, best_pose = self.planner.plan(
+            best_path, is_success, best_pose, best_not_inter_path = self.planner.plan(
                 image, #depth_img * segmask_img is for masked depth image
                 contact_points, 
                 goal,
                 visualize=self.planner_config['visualize'])
             print("[", np.rad2deg(best_pose[0]), best_pose[1], "]")
-
+            if best_pose[1] > 0.1189: best_pose[1] -=0.015 
             if not is_success:
-                best_path = []
+                continue
+
+            _offset = best_pose[1] - 0.114
+            # _offset = np.array([-0.038990381 + _offset / 2 / np.tan(np.deg2rad(120)), 0, 0, 0])
+            # _offset = np.array([-0.038990381 + _offset / 2 / np.tan(np.deg2rad(120)), 0, 0, 0]) / 2
+            _offset = np.array([_offset / 2 / np.tan(np.deg2rad(120)), 0, 0, 0])
+            print("_offset: ", _offset)
 
             # Make ros msg
             res = GetStablePushPathResponse()   
@@ -299,22 +358,90 @@ class StablePushNetModuleServer(object):
                 pose_stamped.header.stamp = rospy.Time.now()
                 pose_stamped.header.frame_id = camera_pose_msg.header.frame_id
                 pose_stamped.pose.position.x, pose_stamped.pose.position.y = each_point[0], each_point[1]
-                pose_stamped.pose.position.z = self.planner_config['height'] + self.cal_path_height(each_point[0], each_point[1])
-
-                # print(np.rad2deg(tft.euler_from_quaternion(tft.quaternion_from_euler(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'), axes='rzxy')), np.rad2deg(tft.quaternion_from_matrix(np.dot(rot_matrix, tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')))))
-            
-                # pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_euler(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')
-                # pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_matrix(np.dot(tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'), rot_matrix))
-                pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_matrix(np.dot(rot_matrix, tft.euler_matrix(each_point[2], 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy')))
+                pose_stamped.pose.position.z = self.gripper_config['height'] + self.cal_path_height(each_point[0], each_point[1])
+                path_rot_matrix = np.dot(rot_matrix, tft.euler_matrix(each_point[2] + np.deg2rad(self.gripper_config["z_angle"]), 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'))
+                pose_stamped.pose.position.x += np.dot(path_rot_matrix, _offset)[0]
+                pose_stamped.pose.position.y += np.dot(path_rot_matrix, _offset)[1]
+                pose_stamped.pose.position.z += np.dot(path_rot_matrix, _offset)[2]
+                pose_stamped.pose.orientation.x, pose_stamped.pose.orientation.y, pose_stamped.pose.orientation.z, pose_stamped.pose.orientation.w = tft.quaternion_from_matrix(path_rot_matrix)
                 path_msg.poses.append(pose_stamped)
-            
+
+            # temp
+            # _traj = CartesianTrajectory()
+            # _traj.header.stamp = rospy.Time.now()
+            # _traj.header.frame_id = "base_0" # base link of doosan m1013
+            # _traj.tracked_frame = "grasp_point" # end effector of gripper
+            # _traj.points =[]
+            # _interpolated_traj = CartesianTrajectory()
+            # _interpolated_traj.header.stamp = rospy.Time.now()
+            # _interpolated_traj.header.frame_id = "base_0" # base link of doosan m1013
+            # _interpolated_traj.tracked_frame = "grasp_point" # end effector of gripper
+            # _interpolated_traj.points =[]
+
+            # _vel = 0.1 # m/s
+
+
+            # for i, each_point in enumerate(best_not_inter_path):
+            #     if i is not (len(best_not_inter_path) - 1):
+            #         x = i + 1
+            #     else:
+            #         x = i
+            #     _lengh = np.linalg.norm(np.array([each_point[0] - best_not_inter_path[x][0], each_point[1] - best_not_inter_path[x][1]]))
+            #     _point = CartesianTrajectoryPoint()
+            #     _point.time_from_start = rospy.Duration.from_sec(_lengh / _vel)
+            #     _point.point.pose.position
+            #     _point.point.pose.position.x, _point.point.pose.position.y = each_point[0], each_point[1]
+            #     _point.point.pose.position.z = self.gripper_config['height'] + self.cal_path_height(each_point[0], each_point[1])
+            #     path_rot_matrix = np.dot(rot_matrix, tft.euler_matrix(each_point[2] + np.deg2rad(self.gripper_config["z_angle"]), 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'))
+            #     _point.point.pose.position.x += np.dot(path_rot_matrix, _offset)[0]
+            #     _point.point.pose.position.y += np.dot(path_rot_matrix, _offset)[1]
+            #     _point.point.pose.position.z += np.dot(path_rot_matrix, _offset)[2]
+            #     _point.point.pose.orientation.x, _point.point.pose.orientation.y, _point.point.pose.orientation.z, _point.point.pose.orientation.w = tft.quaternion_from_matrix(path_rot_matrix)
+            #     _traj.points.append(_point)
+
+
+            # for i, each_point in enumerate(best_path):
+            #     if i is not (len(best_path) - 1):
+            #         x = i + 1
+            #     else:
+            #         x = i
+            #     _lengh = np.linalg.norm(np.array([each_point[0] - best_path[x][0], each_point[1] - best_path[x][1]]))
+            #     _point = CartesianTrajectoryPoint()
+            #     _point.time_from_start = rospy.Duration.from_sec(_lengh / _vel)
+            #     _point.point.pose.position
+            #     _point.point.pose.position.x, _point.point.pose.position.y = each_point[0], each_point[1]
+            #     _point.point.pose.position.z = self.gripper_config['height'] + self.cal_path_height(each_point[0], each_point[1])
+            #     path_rot_matrix = np.dot(rot_matrix, tft.euler_matrix(each_point[2] + np.deg2rad(self.gripper_config["z_angle"]), 0-np.pi, np.pi/2 - best_pose[0], axes='rzxy'))
+            #     _point.point.pose.position.x += np.dot(path_rot_matrix, _offset)[0]
+            #     _point.point.pose.position.y += np.dot(path_rot_matrix, _offset)[1]
+            #     _point.point.pose.position.z += np.dot(path_rot_matrix, _offset)[2]
+            #     _point.point.pose.orientation.x, _point.point.pose.orientation.y, _point.point.pose.orientation.z, _point.point.pose.orientation.w = tft.quaternion_from_matrix(path_rot_matrix)
+            #     _interpolated_traj.points.append(_point)
+
+            # self.push_path_interpolated_pub.publish(_interpolated_traj)
+            # self.push_path_pub.publish(_traj)
+            # self.push_path_origin_pub.publish(path_msg)
+
+
             # Response the ROS service
-            rospy.loginfo('Successfully generate path path')
+            rospy.loginfo('Successfully generate path')
             res.path = path_msg
             res.plan_successful = is_success
             res.gripper_pose = [best_pose[0], best_pose[1]]
-            print(res.gripper_pose)
             return res
+        
+        path_msg = Path()
+        path_msg.header.frame_id = camera_pose_msg.header.frame_id
+        path_msg.header.stamp = rospy.Time.now()
+        path_msg.poses = []
+        
+        res = GetStablePushPathResponse()   
+        rospy.loginfo('Path generation failed')
+        res.path = path_msg
+        res.plan_successful = False
+        res.gripper_pose = [90, 0]
+        return res
+        
 
     def parse_push_target_msg(self, push_target_array_msg):
         ''' Parse push target array msg to target ids and push directions.'''
@@ -330,7 +457,7 @@ class StablePushNetModuleServer(object):
             target_id_list.append(target.push_target_id)
             goal_pose_list.append([target.goal_pose.x, target.goal_pose.y, target.goal_pose.theta])
             push_direction_range_list.append([target.start_pose_min_theta.theta, target.start_pose_max_theta.theta])
-            
+        print("priority_list: ", priority_list)
         priority_array = np.array(priority_list)
         target_id_array = np.array(target_id_list)
         goal_pose_array = np.array(goal_pose_list)

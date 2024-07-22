@@ -2,12 +2,10 @@ model_dir: catkin_ws/src/push_planners/twc-stable-push-net-ros/models
 
 # Inference Configuration
 planner:
-  gripper: "vertical"
-  # gripper: "hanyang"
-  gripper_width: 0.075
-  height: 0.03
-  num_push_directions: 6
+  gripper: "hanyang"  # "vertical", "hanyang"
   # num_push_directions: 8
+  num_push_directions: 12
+  gripper_width: 0.055
 
   # visualize: True
   visualize: False
@@ -24,9 +22,6 @@ hybrid:
   grid_size: 0.05  # unit: m
   dtheta:  5  # unit: deg
 
-# Train Configuration
-file_zero_padding_num: 7
-
 gripper:
   vertical:
     height: 0.03
@@ -37,7 +32,9 @@ gripper:
 
   hanyang:
     height: 0.015
-    z_angle: 0
+    # height: 0.03
+    # z_angle: -1.81759703
+    z_angle: +13.1825
     finger_angle: 120 # hanyang
     x_offset: -0.038990381
 

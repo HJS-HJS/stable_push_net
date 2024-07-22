@@ -241,8 +241,8 @@ class HybridAstarPushPlanner(object):
         edges = (forward,)
 
         # Max heading change from min radius
-        max_heading_change_left = diagonal / left_min_radius
-        max_heading_change_right = diagonal / right_min_radius
+        max_heading_change_left = diagonal / left_min_radius * 1.4
+        max_heading_change_right = diagonal / right_min_radius * 1.4
         print('left_heading_angle: {}, right_heading_angle: {}'.format(
             np.rad2deg(max_heading_change_left), np.rad2deg(max_heading_change_right)))
 
@@ -656,24 +656,17 @@ class HybridAstarPushPlanner(object):
 
         # get search space
         
-        # TODO: self._dtheta is changed inside function. Fix it.
         left_min_radius, right_min_radius = self._get_stable_minimum_radius(
             depth_image, contact_point)
         
         print("angle:", left_min_radius[1:])
         left_min_radius[1] = np.deg2rad(left_min_radius[1])
-        # --- TESTING: Getting maximum radius ---
-        # left_max_radius, right_max_radius = self._get_stable_maximum_radius(
-        #     depth_image, contact_point)
-        # ---------------------------------------
-        _temp_ratio = 1.0
         successor_template = self._get_successor_template(
-            # left_min_radius[0] * _temp_ratio, right_min_radius[0] * _temp_ratio)
             left_min_radius[0], right_min_radius[0])
         search_space = self._get_search_space(successor_template)
 
         # solve path
-        print("Goal before solv e: {:.2f} {:.2f} {:.2f}".format(
+        print("Goal before solve: {:.2f} {:.2f} {:.2f}".format(
             goal[0], goal[1], goal[2]))
         path = self._solve(
             start=contact_point.pose, 
@@ -725,14 +718,13 @@ class HybridAstarPushPlanner(object):
         pose_list = []
         
         # Compare stability for all contact points
-        print("contact points: " ,len(contact_points))
+        print("{} contact points are generated".format(len(contact_points)))
         # self._compare_stability_for_all_velocities(depth_image, contact_points)
         
         if visualize:
             fig = plt.figure()
         
         for idx, contact_point in enumerate(contact_points):
-            # print
             # print('Plan with `({}, {}, {})` contact point'.format(
             #     contact_point.pose[0],
             #     contact_point.pose[1],
@@ -757,19 +749,35 @@ class HybridAstarPushPlanner(object):
                 continue
 
         # get shortest path
+        print("path_list")
         path_length_list = []
         for path in path_list:
             # path : (N, 3), (x, y, theta)
             path_length = 0
+            path_angle = 0
             for i in range(len(path) - 1):
-                path_length += np.linalg.norm(path[i + 1, :2] - path[i, :2])
-            path_length_list.append(path_length)
-            print(path_length)
-        shortest_path_idx = 0
-        for i, path_length in enumerate(path_length_list):
-            if path_length < path_length_list[shortest_path_idx]:
-                shortest_path_idx = i
-        # shortest_path_idx = np.argmin(path_length_list)
+                # path_length += np.linalg.norm(path[i + 1, :2] - path[i, :2])
+                _length = np.linalg.norm(path[i + 1, :2] - path[i, :2])
+                _angle = path[i + 1, 2] - path[i, 2]
+                # _comp_length = _length  * _angle / np.sin(_angle) if _angle != 0 else _length
+                path_length += _length  * _angle / np.sin(_angle) if _angle != 0 else _length
+                path_angle += np.abs(_angle)
+                # print(_length, _comp_length, path[i + 1, 2] - path[i, 2])
+                # print(path[i + 1, 2] - path[i, 2])
+            # path_length_list.append(path_length)
+            path_length_list.append(path_angle)
+            print(path_length, path_angle)
+        # shortest_path_idx = 0
+        # for i, path_length in enumerate(path_length_list):
+            # if path_length < path_length_list[shortest_path_idx]:
+                # shortest_path_idx = i
+        if len(path_length_list) == 0: return [0., 0., 0.], False, [0., 0.], [0., 0., 0.]
+
+
+        shortest_path_idx = np.argmin(path_length_list)
+        # shortest_path_idx = np.argsort(path_length_list)[len(path_length_list)//2]
+        print(len(path_length_list))
+        print(shortest_path_idx)
         shortest_path = path_list[shortest_path_idx]
         shortest_pose = pose_list[shortest_path_idx]
         shortest_contact_point = contact_point_list[shortest_path_idx]
@@ -803,8 +811,9 @@ class HybridAstarPushPlanner(object):
 
         # Combine the interpolated x, y, and theta into a new motion path
         interpolated_motion_path = np.column_stack((interpolated_x, interpolated_y, interpolated_theta))
+        motion_path = np.column_stack((x, y ,theta))
         # return interpolated_motion_path, shortest_contact_point, shortest_pose
-        return interpolated_motion_path, True, shortest_pose
+        return interpolated_motion_path, True, shortest_pose, motion_path
 class RRTPushPlanner(object):
     def __init__(self):
         pass
