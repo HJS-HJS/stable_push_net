@@ -8,6 +8,7 @@ geometry_msgs/PoseStamped camera_pose
 # Push target information
 PushTargetArray push_targets
 ---
-nav_msgs/Path path
+# nav_msgs/Path path
+moveit_msgs/CartesianTrajectory path
 bool plan_successful
 float32[] gripper_pose

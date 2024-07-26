@@ -193,8 +193,8 @@ class ContactPointSampler(object):
         
         self.push_dir_range = push_dir_range
         
-    def sample(self, depth_image, mask, not_push_direction_range):
-        edge_list_uv, edge_list_xyz = self.edge_list_using_pcd(depth_image, mask, self.camera_extr, self.camera_intr)
+    def sample(self, masked_depth_image, not_push_direction_range):
+        edge_list_uv, edge_list_xyz = self.edge_list_using_pcd(masked_depth_image, self.camera_extr, self.camera_intr)
         contact_pair_uv, contact_pair_xyz = self.get_contact_points(edge_list_uv, edge_list_xyz)
         edge_center = edge_list_xyz.mean(0)
         contact_pair_centers = contact_pair_xyz.mean(1)
@@ -298,17 +298,15 @@ class ContactPointSampler(object):
 
         return filtered_array
 
-    def edge_list_using_pcd(self, depth_image, segmask, camera_extr, camera_intrinsic):
+    def edge_list_using_pcd(self, masked_depth_image, camera_extr, camera_intrinsic):
         '''
         Reproject depth image in vertical view
         '''
         
         # Get point cloud of the object only
-        # depth_image = depth_image * segmask
-        # pcd = self.depth_to_pcd(depth_image, camera_intrinsic)
+        # pcd = self.depth_to_pcd(masked_depth_image, camera_intrinsic)
         # pcd_object = pcd[np.where(pcd[:,2] > 0.1)[0]]
-        depth_image = depth_image * segmask
-        pcd_object = self.depth_to_pcd(depth_image, camera_intrinsic)
+        pcd_object = self.depth_to_pcd(masked_depth_image, camera_intrinsic)
         
         # Transform point cloud to world frame
         pcd_w = (np.matmul(camera_extr[:3,:3], pcd_object[:,:3].T) + camera_extr[:3,3].reshape(3,1)).T
